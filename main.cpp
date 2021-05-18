@@ -28,15 +28,14 @@ public:
   const char *ns;
   const char *host;
   const char *tor;
-  const char *ip_addr;
   const char *ipv4_proxy;
   const char *ipv6_proxy;
   std::set<uint64_t> filter_whitelist;
 
-  CDnsSeedOpts() : nThreads(96), nDnsThreads(4), ip_addr("::"), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fUseTestNet(false), fWipeBan(false), fWipeIgnore(false), ipv4_proxy(NULL), ipv6_proxy(NULL) {}
+  CDnsSeedOpts() : nThreads(96), nDnsThreads(4), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fUseTestNet(false), fWipeBan(false), fWipeIgnore(false), ipv4_proxy(NULL), ipv6_proxy(NULL) {}
 
   void ParseCommandLine(int argc, char **argv) {
-    static const char *help = "Bitcoin-seeder\n"
+    static const char *help = "Widecoin-seeder\n"
                               "Usage: %s -h <host> -n <ns> [-m <mbox>] [-t <threads>] [-p <port>]\n"
                               "\n"
                               "Options:\n"
@@ -45,7 +44,6 @@ public:
                               "-m <mbox>       E-Mail address reported in SOA records\n"
                               "-t <threads>    Number of crawlers to run in parallel (default 96)\n"
                               "-d <threads>    Number of DNS server threads (default 4)\n"
-                              "-a <address>    Address to listen on (default ::)\n"
                               "-p <port>       UDP port to listen on (default 53)\n"
                               "-o <ip:port>    Tor proxy IP/Port\n"
                               "-i <ip:port>    IPV4 SOCKS5 proxy IP/Port\n"
@@ -65,7 +63,6 @@ public:
         {"mbox", required_argument, 0, 'm'},
         {"threads", required_argument, 0, 't'},
         {"dnsthreads", required_argument, 0, 'd'},
-        {"address", required_argument, 0, 'a'},
         {"port", required_argument, 0, 'p'},
         {"onion", required_argument, 0, 'o'},
         {"proxyipv4", required_argument, 0, 'i'},
@@ -74,11 +71,11 @@ public:
         {"testnet", no_argument, &fUseTestNet, 1},
         {"wipeban", no_argument, &fWipeBan, 1},
         {"wipeignore", no_argument, &fWipeBan, 1},
-        {"help", no_argument, 0, 'h'},
+        {"help", no_argument, 0, '?'},
         {0, 0, 0, 0}
       };
       int option_index = 0;
-      int c = getopt_long(argc, argv, "h:n:m:t:a:p:d:o:i:k:w:", long_options, &option_index);
+      int c = getopt_long(argc, argv, "h:n:m:t:p:d:o:i:k:w:?", long_options, &option_index);
       if (c == -1) break;
       switch (c) {
         case 'h': {
@@ -105,18 +102,6 @@ public:
         case 'd': {
           int n = strtol(optarg, NULL, 10);
           if (n > 0 && n < 1000) nDnsThreads = n;
-          break;
-        }
-
-        case 'a': {
-          if (strchr(optarg, ':')==NULL) {
-            char* ip4_addr = (char*) malloc(strlen(optarg)+8);
-            strcpy(ip4_addr, "::FFFF:");
-            strcat(ip4_addr, optarg);
-            ip_addr = ip4_addr;
-          } else {
-            ip_addr = optarg;
-          }
           break;
         }
 
@@ -162,19 +147,22 @@ public:
       }
     }
     if (filter_whitelist.empty()) {
-        filter_whitelist.insert(NODE_NETWORK); // x1
-        filter_whitelist.insert(NODE_NETWORK | NODE_BLOOM); // x5
-        filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS); // x9
-        filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS | NODE_COMPACT_FILTERS); // x49
-        filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS | NODE_BLOOM); // xd
-        filter_whitelist.insert(NODE_NETWORK_LIMITED); // x400
-        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_BLOOM); // x404
-        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS); // x408
-        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS | NODE_COMPACT_FILTERS); // x448
-        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS | NODE_BLOOM); // x40c
+        filter_whitelist.insert(NODE_NETWORK);
+        filter_whitelist.insert(NODE_NETWORK | NODE_BLOOM);
+        filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS);
+        filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS | NODE_COMPACT_FILTERS);
+        filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS | NODE_BLOOM);
+        filter_whitelist.insert(NODE_NETWORK_LIMITED);
+        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_BLOOM);
+        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS);
+        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS | NODE_COMPACT_FILTERS);
+        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS | NODE_BLOOM);
     }
     if (host != NULL && ns == NULL) showHelp = true;
-    if (showHelp) fprintf(stderr, help, argv[0]);
+    if (showHelp) {
+        fprintf(stderr, help, argv[0]);
+        exit(0);
+    }
   }
 };
 
@@ -276,7 +264,6 @@ public:
     dns_opt.datattl = 3600;
     dns_opt.nsttl = 40000;
     dns_opt.cb = GetIPList;
-    dns_opt.addr = opts->ip_addr;
     dns_opt.port = opts->nPort;
     dns_opt.nRequests = 0;
     dbQueries = 0;
@@ -418,17 +405,13 @@ extern "C" void* ThreadStats(void*) {
   return nullptr;
 }
 
-static const string mainnet_seeds[] = {"dnsseed.bluematt.me", "bitseed.xf2.org", "dnsseed.bitcoin.dashjr.org", "seed.bitcoin.sipa.be", ""};
-static const string testnet_seeds[] = {"testnet-seed.alexykot.me",
-                                       "testnet-seed.bitcoin.petertodd.org",
-                                       "testnet-seed.bluematt.me",
-                                       "testnet-seed.bitcoin.schildbach.de",
-                                       ""};
+static const string mainnet_seeds[] = {"127.0.0.1", ""};
+static const string testnet_seeds[] = {"testnet-seed.widecointools.com", "seed-b.widecoin.loshan.co.uk", "testnet-seed.ltc.xurious.com", "dnsseed-testnet.thrasher.io", ""};
 static const string *seeds = mainnet_seeds;
 
 extern "C" void* ThreadSeeder(void*) {
   if (!fTestNet){
-    db.Add(CService("kjy2eqzk4zwi5zd3.onion", 8333), true);
+    db.Add(CService("kjy2eqzk4zwi5zd3.onion", 8553), true);
   }
   do {
     for (int i=0; seeds[i] != ""; i++) {
@@ -480,10 +463,10 @@ int main(int argc, char **argv) {
   bool fDNS = true;
   if (opts.fUseTestNet) {
       printf("Using testnet.\n");
-      pchMessageStart[0] = 0x0b;
-      pchMessageStart[1] = 0x11;
-      pchMessageStart[2] = 0x09;
-      pchMessageStart[3] = 0x07;
+      pchMessageStart[0] = 0xfd;
+      pchMessageStart[1] = 0xd2;
+      pchMessageStart[2] = 0xc8;
+      pchMessageStart[3] = 0xf1;
       seeds = testnet_seeds;
       fTestNet = true;
   }
