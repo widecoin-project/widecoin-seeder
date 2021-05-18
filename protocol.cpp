@@ -22,7 +22,7 @@ static const char* ppszTypeName[] =
     "block",
 };
 
-unsigned char pchMessageStart[4] = { 0xf9, 0xbe, 0xb4, 0xd9 };
+unsigned char pchMessageStart[4] = { 0xf8, 0xbf, 0xc3, 0xdc };
 
 CMessageHeader::CMessageHeader()
 {
@@ -36,7 +36,7 @@ CMessageHeader::CMessageHeader()
 CMessageHeader::CMessageHeader(const char* pszCommand, unsigned int nMessageSizeIn)
 {
     memcpy(pchMessageStart, ::pchMessageStart, sizeof(pchMessageStart));
-    size_t command_len = strnlen(pszCommand, COMMAND_SIZE);
+    int command_len = strlen(pszCommand);
     memcpy(pchCommand, pszCommand, command_len);
     memset(pchCommand + command_len, 0, COMMAND_SIZE - command_len);
     nMessageSize = nMessageSizeIn;
